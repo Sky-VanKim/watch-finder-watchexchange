@@ -10,6 +10,8 @@ Configuration (environment variables):
   NTFY_SERVER           optional, default https://ntfy.sh
   REDDIT_CLIENT_ID      from https://www.reddit.com/prefs/apps ("script" app)
   REDDIT_CLIENT_SECRET  from the same page
+  REDDIT_USERNAME       optional: bot account username (signs in as the bot)
+  REDDIT_PASSWORD       optional: bot account password
   REDDIT_USER_AGENT     optional, e.g. "keyword-watcher/1.0 by u/yourname"
   STATE_FILE            optional, default state.json
 
@@ -40,9 +42,15 @@ def http(url, data=None, headers=None, method=None):
         return resp.read()
 
 
-def get_token(client_id, client_secret, user_agent):
+def get_token(client_id, client_secret, user_agent, username=None, password=None):
     auth = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    body = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode()
+    if username and password:
+        # Sign in as the bot account (script-app "password" grant).
+        form = {"grant_type": "password", "username": username, "password": password}
+    else:
+        # App-only access, no user account.
+        form = {"grant_type": "client_credentials"}
+    body = urllib.parse.urlencode(form).encode()
     raw = http(
         "https://www.reddit.com/api/v1/access_token",
         data=body,
@@ -111,7 +119,8 @@ def main():
     state_path = env("STATE_FILE", "state.json")
 
     matcher = build_matcher(keywords)
-    token = get_token(client_id, client_secret, user_agent)
+    token = get_token(client_id, client_secret, user_agent,
+                      env("REDDIT_USERNAME"), env("REDDIT_PASSWORD"))
     posts = fetch_new_posts(subreddit, token, user_agent)  # newest first
 
     state = load_state(state_path)
