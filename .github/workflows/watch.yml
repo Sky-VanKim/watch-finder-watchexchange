@@ -1,0 +1,41 @@
+name: watch-finder-watchexchange
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes (GitHub may run it a few minutes late)
+  workflow_dispatch:          # lets you run it manually from the Actions tab
+
+concurrency:
+  group: reddit-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore seen-posts state
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: reddit-state-${{ github.run_id }}
+          restore-keys: reddit-state-
+
+      - name: Check subreddit
+        run: python3 reddit_watch.py
+        env:
+          SUBREDDIT: ${{ vars.SUBREDDIT }}
+          KEYWORDS: ${{ vars.KEYWORDS }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ vars.REDDIT_USER_AGENT }}
+
+      - name: Save seen-posts state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: reddit-state-${{ github.run_id }}
